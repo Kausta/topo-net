@@ -1,0 +1,232 @@
+import os
+from dataclasses import dataclass, field
+import glob
+from pathlib import Path
+import h5py
+import pandas as pd
+import random
+import pickle
+
+import numpy as np
+import pytorch_lightning as pl
+import torch
+import torch.nn.functional as F
+from torch.utils.data import DataLoader, Dataset, IterableDataset
+import torchvision.transforms as transforms
+
+import phm
+from phm import register
+from phm.util.base import Updateable
+from phm.util.config import parse_structured
+from phm.util.misc import get_rank
+from phm.util.typing import *
+
+import medmnist
+from medmnist.dataset import MedMNIST2D
+
+@dataclass
+class MedMnist2dDataModuleConfig:
+    dataset: str = "breastmnist" # in DATASET_MAPPING
+    dataroot: str = str("/data2/medmnist/")
+    download: bool = True
+    mmap_mode: Optional[str] = None
+
+    as_rgb: bool = False
+    size: Optional[int] = None # None, 28, 64, 128, 224
+
+    resize: Optional[int] = None
+
+    train_data_percent: Optional[float] = None
+    train_data_percent_seed: int = 0
+
+    train_data_num: Optional[int] = None
+
+    train_batch_size: int = 4
+    val_batch_size: int = 4
+    test_batch_size: int = 4
+    
+    train_workers: int = 8
+    val_workers: int = 8
+    test_workers: int = 8
+
+    has_betti_data: bool = False
+    betti_data_csv: str = ""
+    betti_data_partial: bool = False
+    betti_data_partial_csv: str = ""
+
+    has_persistence_image: bool = False
+    persistence_image_pkl: str = ""
+    persistence_image_concat: bool = False
+
+DATASET_MAPPING = {
+    "pathmnist": ("PathMnist", medmnist.PathMNIST),
+    "octmnist": ("OCTMnist",medmnist.OCTMNIST),
+    "pneumoniamnist": ("PneumoniaMnist",medmnist.PneumoniaMNIST),
+    "chestmnist": ("ChestMnist",medmnist.ChestMNIST),
+    "dermamnist": ("DermaMnist",medmnist.DermaMNIST),
+    "retinamnist": ("RetinaMnist",medmnist.RetinaMNIST),
+    "breastmnist": ("BreastMnist",medmnist.BreastMNIST),
+    "bloodmnist": ("BloodMnist",medmnist.BloodMNIST),
+    "tissuemnist": ("TissueMnist",medmnist.TissueMNIST),
+    "organamnist": ("OrganAMnist",medmnist.OrganAMNIST),
+    "organcmnist": ("OrganCMnist",medmnist.OrganCMNIST),
+    "organsmnist": ("OrganSMnist",medmnist.OrganSMNIST),
+}
+
+class MedMnist2dDataset(Dataset, Updateable):
+    def __init__(self, cfg: MedMnist2dDataModuleConfig, split: str):
+        super().__init__()
+
+        self.cfg = cfg
+
+        T = []
+        if cfg.resize is not None:
+            T.append(transforms.Resize((cfg.resize, cfg.resize), transforms.InterpolationMode.NEAREST))
+        T.extend([            
+            transforms.ToTensor(),
+            transforms.Normalize(mean=[.5], std=[.5])
+        ])
+        data_transform = transforms.Compose(T)
+        
+        assert cfg.dataset in DATASET_MAPPING
+        dataset_name: str
+        dataset_cls: Type[MedMNIST2D] 
+        dataset_name, dataset_cls = DATASET_MAPPING[cfg.dataset]
+        self.dataset: MedMNIST2D = dataset_cls(
+            split=split,
+            transform=data_transform,
+            root=self.cfg.dataroot,
+            download=self.cfg.download,
+            as_rgb=self.cfg.as_rgb,
+            size=self.cfg.size,
+            mmap_mode=self.cfg.mmap_mode
+        )
+
+        self.betti_partial = False
+        if split == "train" and self.cfg.betti_data_partial:
+            self.betti_partial = True
+
+        self.betti_data = None
+        if self.cfg.has_betti_data:
+            csv_base = self.cfg.betti_data_csv
+            if self.betti_partial:
+                csv_base = self.cfg.betti_data_partial_csv
+            csv_file = csv_base.format(split=split, size=self.cfg.size, name=dataset_name)
+            self.betti_data = pd.read_csv(csv_file).to_numpy()
+
+        self.persistence_images = None
+        if self.cfg.has_persistence_image:
+            pi_file = self.cfg.persistence_image_pkl.format(split=split, size=self.cfg.size, name=dataset_name)
+            with open(pi_file, "rb") as f:
+                persistence_images: np.ndarray = pickle.load(f)
+                self.persistence_images = persistence_images.squeeze(1)
+
+            if self.cfg.persistence_image_concat:
+                pT = []
+                if cfg.resize is not None:
+                    pT.append(transforms.Resize((cfg.resize, cfg.resize), transforms.InterpolationMode.NEAREST))
+                self.persistence_T = transforms.Compose(pT)
+
+        self.indices = None
+        if split == "train" and self.cfg.train_data_percent is not None:
+            assert 0.001 <= self.cfg.train_data_percent <= 0.999
+            indices = list(range(len(self.dataset)))
+            cutoff_point = int(self.cfg.train_data_percent * len(indices))
+
+            rng = random.Random(self.cfg.train_data_percent_seed)
+            rng.shuffle(indices)
+
+            self.indices = indices[:cutoff_point]
+        elif split == "train" and self.cfg.train_data_num is not None:
+            indices = list(range(len(self.dataset)))
+            cutoff_point = min(self.cfg.train_data_num, len(self.dataset))
+
+            rng = random.Random(self.cfg.train_data_percent_seed)
+            rng.shuffle(indices)
+
+            self.indices = indices[:cutoff_point]
+
+    def __len__(self):
+        return len(self.dataset) if self.indices is None else len(self.indices)
+
+    def __getitem__(self, index):
+        if self.indices is not None:
+            orig_index = index
+            index = self.indices[index]
+        
+        img: torch.Tensor
+        target: np.ndarray
+        img, target = self.dataset[index]
+       
+        data = {
+            "input": img,
+            'target': target.astype(np.int64)
+        }
+
+        if self.betti_data is not None:
+            betti_index = index
+            if self.betti_partial:
+                betti_index = orig_index
+            data["betti"] = self.betti_data[betti_index].astype(np.float32)
+
+        if self.persistence_images is not None:
+            data["persistence_image"] = torch.from_numpy(self.persistence_images[index].astype(np.float32))
+            if self.cfg.persistence_image_concat:
+                data["persistence_image"] = self.persistence_T(data["persistence_image"])
+                data["input"] = torch.cat((
+                    data["input"],
+                    data["persistence_image"]
+                ), dim=0)
+
+        return data
+
+@register("medmnist2d-datamodule")
+class MedMnist2dDataModule(pl.LightningDataModule):
+    cfg: MedMnist2dDataModuleConfig
+
+    def __init__(self, cfg: Optional[Union[dict, DictConfig]] = None) -> None:
+        super().__init__()
+        self.cfg = parse_structured(MedMnist2dDataModuleConfig, cfg)
+
+    def setup(self, stage=None) -> None:
+        if stage in [None, "fit"]:
+            self.train_dataset = MedMnist2dDataset(self.cfg, "train")
+        if stage in [None, "fit", "validate"]:
+            self.val_dataset = MedMnist2dDataset(self.cfg, "val")
+        if stage in [None, "test", "predict"]:
+            self.test_dataset = MedMnist2dDataset(self.cfg, "test")
+
+    def prepare_data(self):
+        pass
+
+    def general_loader(self, dataset, batch_size, shuffle=False, num_workers=0) -> DataLoader:
+        return DataLoader(dataset, batch_size, shuffle=shuffle, num_workers=num_workers, pin_memory=True)
+
+    def train_dataloader(self) -> DataLoader:
+        return self.general_loader(
+            self.train_dataset, 
+            batch_size=self.cfg.train_batch_size,
+            shuffle=True,
+            num_workers=self.cfg.train_workers
+        )
+
+    def val_dataloader(self) -> DataLoader:
+        return self.general_loader(
+            self.val_dataset, 
+            batch_size=self.cfg.val_batch_size,
+            num_workers=self.cfg.val_workers
+        )
+
+    def test_dataloader(self) -> DataLoader:
+        return self.general_loader(
+            self.test_dataset, 
+            batch_size=self.cfg.test_batch_size,
+            num_workers=self.cfg.test_workers
+        )
+
+    def predict_dataloader(self) -> DataLoader:
+        return self.general_loader(
+            self.test_dataset, 
+            batch_size=self.cfg.test_batch_size,
+            num_workers=self.cfg.test_workers
+        )

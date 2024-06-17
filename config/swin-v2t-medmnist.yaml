@@ -1,0 +1,82 @@
+name: "swin-v2t-medmnist"
+tag: "${rmspace:${data.dataset},_}-${data.size}" 
+exp_root_dir: "outputs"
+seed: 0
+
+data_type: "medmnist2d-datamodule"
+data:
+  dataset: breastmnist
+  dataroot: /data2/medmnist/
+  download: true
+  as_rgb: true
+
+  size: 224 
+  # size: 28
+  # resize: 224
+
+  train_batch_size: 128
+  val_batch_size: 128
+  test_batch_size: 128
+
+  train_workers: 16
+  val_workers: 16
+  test_workers: 16
+
+trainer_type: "classification-trainer"
+trainer:
+  model_type: "pure-classifier"
+  model:
+    network_type: network-swin
+    network:
+      model: v2_t
+      pretrained: false
+
+      in_ch: 3
+      out_ch: 1
+
+    classifier_type: null
+
+  task: binary
+  loss:
+    lambda_ce: 1.0
+  
+  optimizer:
+    name: Adam # AdamW
+    args:
+      lr: 0.001 # 0.01
+      # weight_decay: 0.01
+
+  # scheduler:
+  #   name: CosineWarmup
+  #   interval: step
+  #   args:
+  #     warmup_epochs: 10
+  #     min_lr: 5e-4
+
+  scheduler:
+    name: MultiStepLR
+    interval: epoch
+    args:
+      gamma: 0.1
+      milestones:
+        - ${mul:0.5,${pl_trainer.max_epochs}}
+        - ${mul:0.75,${pl_trainer.max_epochs}}
+
+pl_trainer:
+  max_epochs: 100
+  log_every_n_steps: 1
+  enable_progress_bar: true
+  precision: 32
+  benchmark: true # cudnn_benchmark
+  # detect_anomaly: true
+
+checkpoint:
+  save_last: true
+  save_top_k: 3
+  monitor: "val/roc_auc"
+  mode: "max"
+  filename: "epoch={epoch}-val_roc_auc={val/roc_auc}-val_accuracy={val/accuracy}"
+  auto_insert_metric_name: false
+
+test_final: true
+test_best_val: true

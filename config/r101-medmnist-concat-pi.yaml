@@ -1,0 +1,105 @@
+name: "r101-medmnist-concat"
+tag: "${rmspace:${data.dataset},_}-${data.size}" 
+exp_root_dir: "outputs"
+seed: 0
+
+data_type: "medmnist2d-datamodule"
+data:
+  dataset: breastmnist
+  dataroot: /data2/medmnist/
+  download: true
+  as_rgb: true
+
+  # size: 224 
+  size: 28
+  resize: 224
+
+  train_batch_size: 128
+  val_batch_size: 128
+  test_batch_size: 128
+
+  train_workers: 16
+  val_workers: 16
+  test_workers: 16
+
+  has_persistence_image: True
+  persistence_image_pkl: /data2/ck223/medmnist/persistence/{name}_persistence_images_combined_{split}.pkl
+
+trainer_type: "classification-trainer"
+trainer:
+  pi_aux: true
+
+  model_type: "concat-classifier"
+  model:
+    network_type: network-resnet
+    network:
+      model: resnet101
+      pretrained: false
+
+      in_ch: 3
+      out_ch: 128
+
+    aux_network_type: network-resnet-custom
+    aux_network:
+      in_ch: 2
+      layers: [2, 2, 2]
+      strides: [1, 2, 2]
+      out_ch: 128
+
+      conv1_kernel_size: 5
+      conv1_stride: 1
+      initial_max_pool: false
+
+    classifier_type: classifier-linear
+    classifier:
+      in_ch: ${add:${trainer.model.network.out_ch},${trainer.model.aux_network.out_ch}}
+      ch: 256
+      out_ch: 1
+
+      dropout_in: 0.0
+      dropout_feat: 0.0
+
+  task: binary
+  loss:
+    lambda_ce: 1.0
+  
+  optimizer:
+    name: Adam # AdamW
+    args:
+      lr: 0.001 # 0.01
+      # weight_decay: 0.01
+
+  # scheduler:
+  #   name: CosineWarmup
+  #   interval: step
+  #   args:
+  #     warmup_epochs: 10
+  #     min_lr: 5e-4
+
+  scheduler:
+    name: MultiStepLR
+    interval: epoch
+    args:
+      gamma: 0.1
+      milestones:
+        - ${mul:0.5,${pl_trainer.max_epochs}}
+        - ${mul:0.75,${pl_trainer.max_epochs}}
+
+pl_trainer:
+  max_epochs: 100
+  log_every_n_steps: 1
+  enable_progress_bar: true
+  precision: 32
+  benchmark: true # cudnn_benchmark
+  # detect_anomaly: true
+
+checkpoint:
+  save_last: true
+  save_top_k: 3
+  monitor: "val/roc_auc"
+  mode: "max"
+  filename: "epoch={epoch}-val_roc_auc={val/roc_auc}-val_accuracy={val/accuracy}"
+  auto_insert_metric_name: false
+
+test_final: true
+test_best_val: true
