@@ -23,7 +23,7 @@ data:
   test_workers: 16
 
   has_betti_data: True
-  betti_data_csv: "/data2/ck223/medmnist/size224/{split}_{size}_{name}_BettiVectors_100.csv"
+  betti_data_csv: "/data2/home/medmnist/size224/{split}_{size}_{name}_BettiVectors_100.csv"
 
 trainer_type: "classification-trainer"
 trainer:

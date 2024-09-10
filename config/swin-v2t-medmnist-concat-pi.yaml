@@ -23,7 +23,7 @@ data:
   test_workers: 16
 
   has_persistence_image: True
-  persistence_image_pkl: /data2/ck223/medmnist/persistence/{name}_persistence_images_combined_{split}.pkl
+  persistence_image_pkl: /data2/home/medmnist/persistence/{name}_persistence_images_combined_{split}.pkl
 
 trainer_type: "classification-trainer"
 trainer:
