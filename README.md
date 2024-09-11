@@ -13,7 +13,6 @@ Our approach leverages topological data analysis (TDA) to improve the robustness
 - [Results](#results)
 - [Acknowledgements](#acknowledgements)
 
-
 ## Installation
 
 To get started, clone this repository and install the required dependencies.
@@ -47,7 +46,7 @@ The project is configured to automatically download the dataset given that a val
 
 ## Results
 
-The results of our experiments are documented in the paper. Briefly, the topological methods showed  improvements in performance over the baseline models in limited-data settings.
+The results of our experiments are documented in the paper. Briefly, the topological methods showed improvements in performance over the baseline models in limited-data settings.
 
 ## Acknowledgements
 
