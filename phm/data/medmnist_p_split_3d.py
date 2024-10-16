@@ -23,7 +23,7 @@ as_rgb = True
 
 train_data_percent_seed: int = 0
 
-NUM_ELEMS = [50, 100, 200, 40, 80, 150]
+NUM_ELEMS = [50, 100, 200, 40, 80, 150, 250, 500]
 
 def get_dataset_len(dataset_name: str) -> int:
     dataset_cls: Type[MedMNIST3D] 

@@ -7,11 +7,16 @@ Our approach leverages topological data analysis (TDA) to improve the robustness
 
 ## Table of Contents
 
-- [Installation](#installation)
-- [Usage](#usage)
-- [Data](#data)
-- [Results](#results)
-- [Acknowledgements](#acknowledgements)
+- [TopoNet](#toponet)
+  - [Table of Contents](#table-of-contents)
+  - [Installation](#installation)
+  - [Usage](#usage)
+  - [Data](#data)
+  - [Results and Figures](#results-and-figures)
+    - [AUC Figures - 2D Datasets](#auc-figures---2d-datasets)
+    - [AUC Figures - 3D Datasets](#auc-figures---3d-datasets)
+    - [Example Filtration](#example-filtration)
+  - [Acknowledgements](#acknowledgements)
 
 ## Installation
 
@@ -44,9 +49,34 @@ The dataset used in this project is not included in the repository.
 You can download the dataset from [MedMNIST](https://medmnist.com). 
 The project is configured to automatically download the dataset given that a valid path for `data.dataroot` is provided in the corresponding configuration file.
 
-## Results
+## Results and Figures
 
 The results of our experiments are documented in the paper. Briefly, the topological methods showed improvements in performance over the baseline models in limited-data settings.
+
+### AUC Figures - 2D Datasets
+
+The following figures demonstrate the ROCAUC score comparisons of different models for the 2D MedMNIST datasets:
+
+![blood](./figures/BloodMNIST_AUC_line_plot.png) ![derma](./figures/DermaMNIST_AUC_line_plot.png)
+
+![oct](./figures/OCTMNIST_AUC_line_plot.png) ![path](./figures/PathMNIST_AUC_line_plot.png)
+
+![pneu](./figures/PneuMNIST_AUC_line_plot.png) ![tissue](./figures/TissueMNIST_AUC_line_plot.png)
+
+### AUC Figures - 3D Datasets
+
+The following figures demonstrate the ROCAUC score comparisons of different models for the 3D MedMNIST datasets:
+
+![adrenal](./figures/AdrenalMNIST3D_AUC_line_plot.png)
+![vessel](./figures/VesselMNIST3D_AUC_line_plot.png)
+
+### Example Filtration
+
+The following animation and image is an example of a filtration over one of the input images.
+
+![anim-filt](./figures/imgpsh_fullsize_anim.gif)
+
+![image-filt](./figures/imgpsh_fullsize_anim.png)
 
 ## Acknowledgements
 

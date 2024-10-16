@@ -320,7 +320,6 @@ dependencies:
       - beautifulsoup4==4.12.3
       - blessed==1.20.0
       - click==8.1.7
-      - cubical-ph==0.0.1
       - docker-pycreds==0.4.0
       - eagerpy==0.30.0
       - fire==0.6.0
