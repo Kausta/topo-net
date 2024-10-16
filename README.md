@@ -57,11 +57,17 @@ The results of our experiments are documented in the paper. Briefly, the topolog
 
 The following figures demonstrate the ROCAUC score comparisons of different models for the 2D MedMNIST datasets:
 
-![blood](./figures/BloodMNIST_AUC_line_plot.png) ![derma](./figures/DermaMNIST_AUC_line_plot.png)
+![blood](./figures/BloodMNIST_AUC_line_plot.png)
 
-![oct](./figures/OCTMNIST_AUC_line_plot.png) ![path](./figures/PathMNIST_AUC_line_plot.png)
+![derma](./figures/DermaMNIST_AUC_line_plot.png)
 
-![pneu](./figures/PneuMNIST_AUC_line_plot.png) ![tissue](./figures/TissueMNIST_AUC_line_plot.png)
+![oct](./figures/OCTMNIST_AUC_line_plot.png) 
+
+![path](./figures/PathMNIST_AUC_line_plot.png)
+
+![pneu](./figures/PneuMNIST_AUC_line_plot.png) 
+
+![tissue](./figures/TissueMNIST_AUC_line_plot.png)
 
 ### AUC Figures - 3D Datasets
 
